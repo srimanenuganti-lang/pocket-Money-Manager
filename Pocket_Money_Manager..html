@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pocket Money Manager</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{--bg:#f8fafc;--card:#fff;--tx:#0f172a;--mut:#64748b;--bd:#e2e8f0;--g:#10b981;--r:#f43f5e;--amb:#f59e0b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b1220;--card:#131c2e;--tx:#e8eef9;--mut:#93a1b8;--bd:#24304a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b1220;--card:#131c2e;--tx:#e8eef9;--mut:#93a1b8;--bd:#24304a;color-scheme:dark}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Plus Jakarta Sans",system-ui,sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 90px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:18px}
+h1{font-size:22px;margin:0}h3{margin:0 0 12px;font-size:16px}
+nav{display:flex;gap:4px;background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:4px}
+nav a{padding:8px 14px;border-radius:10px;color:var(--mut);text-decoration:none;font-weight:600;font-size:14px}
+nav a.on{background:var(--tx);color:var(--bg)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;box-shadow:0 4px 16px rgba(15,23,42,.05)}
+.grid{display:grid;gap:14px}.stats{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:14px}
+.two{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-bottom:14px}
+.lbl{color:var(--mut);font-size:13px}.val{font-size:24px;font-weight:800}
+.g{color:var(--g)}.r{color:var(--r)}
+button,input,select{font:inherit;color:inherit}
+.btn{border:0;border-radius:12px;padding:9px 14px;font-weight:700;cursor:pointer;color:#fff}
+.btn.inc{background:var(--g)}.btn.exp{background:var(--r)}.btn.gh{background:var(--card);color:var(--tx);border:1px solid var(--bd)}
+input,select{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:9px 11px;width:100%}
+input:focus,select:focus{outline:2px solid var(--g);outline-offset:1px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.row>*{flex:1;min-width:130px}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:520px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--bd);font-size:14px}th{color:var(--mut);font-weight:600}
+td.a{text-align:right;font-weight:700;white-space:nowrap}
+.x{background:none;border:0;color:var(--r);cursor:pointer;font-size:16px}
+.bar{height:10px;border-radius:99px;background:var(--bd);overflow:hidden;margin:10px 0 6px}.bar i{display:block;height:100%;border-radius:99px}
+.al{padding:12px 14px;border-radius:14px;margin-bottom:10px;font-size:14px;font-weight:600}
+.al.w{background:#fef3c7;color:#92400e}.al.e{background:#ffe4e6;color:#9f1239}
+dialog{border:0;border-radius:20px;padding:22px;width:min(420px,92vw);background:var(--card);color:var(--tx)}
+dialog::backdrop{background:rgba(15,23,42,.45)}dialog label{display:block;font-weight:600;font-size:13px;margin:10px 0 4px}
+.err{color:var(--r);font-size:12px;min-height:14px}
+.ch{position:relative;height:240px}
+#toast{position:fixed;right:14px;top:calc(14px + env(safe-area-inset-top,0px));background:var(--g);color:#fff;padding:10px 16px;border-radius:12px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>Pocket Money Manager</h1>
+<nav id="nav"><a href="#dashboard">Dashboard</a><a href="#transactions">Transactions</a><a href="#budgets">Budgets</a></nav>
+<div class="row" style="flex:0 0 auto"><button class="btn inc" onclick="openD('income')">+ Income</button><button class="btn exp" onclick="openD('expense')">+ Expense</button></div></header>
+<main id="app"></main>
+</div>
+<dialog id="dlg"><form id="f" method="dialog" onsubmit="return false"><h3 id="dt">Add transaction</h3>
+<select id="ty" onchange="fillCats()"><option value="expense">Expense</option><option value="income">Income</option></select>
+<label for="am">Amount</label><input id="am" type="number" step="0.01" min="0"><div class="err" id="e-am"></div>
+<label for="ca">Category</label><select id="ca"></select><div class="err" id="e-ca"></div>
+<label for="de">Description</label><input id="de" maxlength="200"><div class="err" id="e-de"></div>
+<label for="da">Date</label><input id="da" type="date"><div class="err" id="e-da"></div>
+<div class="row" style="margin-top:14px;justify-content:flex-end"><button type="button" class="btn gh" onclick="dlg.close()">Cancel</button><button class="btn inc" onclick="save()">Save</button></div></form></dialog>
+<div id="toast" role="status"></div>
+<script>
+const CATS={income:["Pocket money","Scholarship","Gift","Other income"],expense:["Food","Travel","Shopping","Education","Entertainment","Personal care","Other expenses"]};
+const PAL=["#10b981","#f43f5e","#6366f1","#f59e0b","#0ea5e9","#ec4899","#64748b"];
+const BUD={Overall:2500,Food:1000,Travel:500,Shopping:1200};
+const money=n=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:0}).format(n);
+const iso=d=>new Date(d.getTime()-d.getTimezoneOffset()*6e4).toISOString().slice(0,10);
+let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647,ri=(a,b)=>Math.floor(a+rnd()*(b-a+1));
+const D={Food:["Canteen lunch","Evening snacks","Coffee with friends","Weekend dinner"],Travel:["Bus pass top-up","Auto ride","Metro recharge"],Shopping:["T-shirt","Earphones"],Education:["Notebooks","Online course","Photocopies"],Entertainment:["Movie ticket","Streaming plan"],"Personal care":["Haircut","Toiletries"],"Other expenses":["Phone recharge","Birthday contribution"]};
+const R={Food:[60,400],Travel:[40,350],Shopping:[350,900],Education:[40,600],Entertainment:[150,350],"Personal care":[80,250],"Other expenses":[100,300]};
+let id=0,T=[];const now=new Date();
+for(let m=2;m>=0;m--){const f=new Date(now.getFullYear(),now.getMonth()-m,1),last=m?28:now.getDate();
+ const day=n=>iso(new Date(f.getFullYear(),f.getMonth(),Math.max(1,Math.min(n,last))));
+ T.push({type:"income",amount:6000,category:"Pocket money",description:"Monthly pocket money",date:day(1)});
+ if(m!=1)T.push({type:"income",amount:2500,category:"Scholarship",description:"Scholarship installment",date:day(5)});
+ for(let i=0;i<11;i++){const c=CATS.expense[ri(0,6)],[lo,hi]=R[c];T.push({type:"expense",amount:ri(lo,hi),category:c,description:D[c][ri(0,D[c].length-1)],date:day(ri(2,last))})}}
+T.forEach(t=>t.id=++id);
+const sum=(a,t)=>a.filter(x=>x.type==t).reduce((s,x)=>s+x.amount,0);
+const ym=d=>d.slice(0,7),cur=ym(iso(now));
+const $=s=>document.querySelector(s);let charts=[];
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function mk(el,cfg){charts.push(new Chart(el,cfg))}
+function monthly(){const m={};T.forEach(t=>{const k=ym(t.date);(m[k]=m[k]||{income:0,expense:0})[t.type]+=t.amount});return Object.keys(m).sort().map(k=>({k,...m[k]}))}
+function byCat(){const c={};T.filter(t=>t.type=="expense").forEach(t=>c[t.category]=(c[t.category]||0)+t.amount);return Object.entries(c).sort((a,b)=>b[1]-a[1])}
+function spent(c){return T.filter(t=>t.type=="expense"&&ym(t.date)==cur&&(c=="Overall"||t.category==c)).reduce((s,x)=>s+x.amount,0)}
+function tr(t,del){return `<tr><td>${t.date}</td><td>${t.category}</td><td>${t.description}</td><td class="a ${t.type=="income"?"g":"r"}">${t.type=="income"?"+":"−"}${money(t.amount)}</td>${del?`<td><button class="x" aria-label="Delete" onclick="del(${t.id})">✕</button></td>`:""}</tr>`}
+const views={
+dashboard(){const i=sum(T,"income"),e=sum(T,"expense"),mt=T.filter(t=>ym(t.date)==cur),ms=sum(mt,"income")-sum(mt,"expense");
+ $("#app").innerHTML=`<div class="grid stats">
+ <div class="card"><div class="lbl">Money received</div><div class="val g">${money(i)}</div></div>
+ <div class="card"><div class="lbl">Money spent</div><div class="val r">${money(e)}</div></div>
+ <div class="card"><div class="lbl">Available balance</div><div class="val">${money(i-e)}</div></div>
+ <div class="card"><div class="lbl">Savings this month</div><div class="val">${money(ms)}</div></div>
+ <div class="card"><div class="lbl">Transactions</div><div class="val">${T.length}</div></div></div>
+ <div class="grid two"><div class="card"><h3>Income vs expenses</h3><div class="ch"><canvas id="c1"></canvas></div></div>
+ <div class="card"><h3>Where it went</h3><div class="ch"><canvas id="c2"></canvas></div></div></div>
+ <div class="card"><h3>Recent transactions</h3><div class="tw"><table>${[...T].sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id).slice(0,6).map(t=>tr(t)).join("")}</table></div></div>`;
+ const m=monthly(),tc=css("--mut");Chart.defaults.color=tc;
+ mk($("#c1"),{type:"bar",data:{labels:m.map(x=>x.k),datasets:[{label:"Income",data:m.map(x=>x.income),backgroundColor:"#10b981",borderRadius:6},{label:"Expenses",data:m.map(x=>x.expense),backgroundColor:"#f43f5e",borderRadius:6}]},options:{maintainAspectRatio:false}});
+ const c=byCat();mk($("#c2"),{type:"doughnut",data:{labels:c.map(x=>x[0]),datasets:[{data:c.map(x=>x[1]),backgroundColor:PAL,borderWidth:0}]},options:{maintainAspectRatio:false,plugins:{legend:{position:"right"}}}})},
+transactions(){$("#app").innerHTML=`<div class="card"><div class="row" style="margin-bottom:12px"><input id="q" placeholder="Search description or category"><select id="ft"><option value="">All types</option><option value="income">Income</option><option value="expense">Expense</option></select><select id="so"><option value="d">Newest first</option><option value="a">Highest amount</option></select></div><div class="tw"><table id="tb"></table></div></div>`;
+ const draw=()=>{const q=$("#q").value.toLowerCase(),ft=$("#ft").value;let r=T.filter(t=>(!ft||t.type==ft)&&(t.description+t.category).toLowerCase().includes(q));
+  r.sort($("#so").value=="a"?(a,b)=>b.amount-a.amount:(a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
+  $("#tb").innerHTML=r.length?r.map(t=>tr(t,1)).join(""):`<tr><td style="text-align:center;padding:30px;color:var(--mut)">No matching transactions. Try a different search.</td></tr>`};
+ ["q","ft","so"].forEach(i=>$("#"+i).oninput=draw);draw()},
+budgets(){const rows=Object.entries(BUD).map(([c,l])=>{const s=spent(c),p=s/l*100,col=s>l?"#f43f5e":p>=80?"#f59e0b":"#10b981";return{c,l,s,p,col}});
+ const al=rows.filter(r=>r.p>=80).map(r=>r.s>r.l?`<div class="al e">${r.c} budget exceeded by ${money(r.s-r.l)}.</div>`:`<div class="al w">${r.c} budget at ${r.p.toFixed(0)}%. Only ${money(r.l-r.s)} left.</div>`).join("");
+ $("#app").innerHTML=al+`<div class="grid two">${rows.map(r=>`<div class="card"><b>${r.c=="Overall"?"Overall spending":r.c}</b><div class="lbl">${money(r.s)} of ${money(r.l)} this month</div><div class="bar"><i style="width:${Math.min(100,r.p)}%;background:${r.col}"></i></div><div class="row" style="justify-content:space-between"><b>${r.p.toFixed(0)}% used</b><span class="lbl" style="text-align:right">${r.s>r.l?money(r.s-r.l)+" over":money(r.l-r.s)+" left"}</span></div></div>`).join("")}</div>`}};
+function route(){const h=location.hash.slice(1),v=views[h]?h:"dashboard";charts.forEach(c=>c.destroy());charts=[];
+ document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("on",a.hash=="#"+v));views[v]()}
+addEventListener("hashchange",route);route();
+function fillCats(){$("#ca").innerHTML=`<option value="">Select a category</option>`+CATS[$("#ty").value].map(c=>`<option>${c}</option>`).join("")}
+function openD(t){$("#ty").value=t;fillCats();$("#am").value=$("#de").value="";$("#da").value=iso(new Date());document.querySelectorAll(".err").forEach(e=>e.textContent="");$("#dlg").showModal()}
+function save(){const v={am:$("#am").value,ca:$("#ca").value,de:$("#de").value.trim(),da:$("#da").value},e={};
+ if(!(+v.am>0))e.am="Amount must be greater than zero.";if(!v.ca)e.ca="Select a category.";if(!v.de)e.de="Add a short description.";if(!v.da)e.da="Pick a date.";
+ ["am","ca","de","da"].forEach(k=>$("#e-"+k).textContent=e[k]||"");if(Object.keys(e).length)return;
+ T.push({id:++id,type:$("#ty").value,amount:+v.am,category:v.ca,description:v.de,date:v.da});$("#dlg").close();toast("Transaction added.");route()}
+function del(i){if(confirm("Delete this transaction? Your balance will update.")){T=T.filter(t=>t.id!=i);toast("Transaction deleted.");route()}}
+function toast(m){const t=$("#toast");t.textContent=m;t.style.opacity=1;setTimeout(()=>t.style.opacity=0,2200)}
+</script>
+</body>
+</html>
